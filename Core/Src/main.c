@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "ltc2990.h"
+#include "usbd_cdc_if.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -112,7 +113,7 @@ int main(void)
   MX_FDCAN2_Init();
   MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
-
+  // LTC2990_Init()
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -426,7 +427,19 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+#ifdef __GNUC__
+/* With GCC, small printf (option LD Linker->Libraries->Small printf
+   set to 'Yes') calls __io_putchar() */
+int __io_putchar(int ch)
+#else
+int fputc(int ch, FILE *f)
+#endif /* __GNUC__ */
+{
+  /* Place your implementation of fputc here */
+  /* e.g. write a character to the UART3 and Loop until the end of transmission */
+  CDC_Transmit_FS((uint8_t *)&ch, 1);
+  return ch;
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartSensorTask */
@@ -444,7 +457,8 @@ void StartSensorTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    printf("Hello!\r\n");
+    osDelay(1000);
   }
   /* USER CODE END 5 */
 }
