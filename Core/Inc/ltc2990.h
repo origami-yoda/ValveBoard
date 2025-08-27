@@ -29,13 +29,13 @@
 #define LTC2990_REPEAT_ACQUSITION 0x00
 #define LTC2990_SINGLE_ACQUSITION 0x40
 
-#define LTC2990_MODE_INTERNAL_TEMP_ONLY 0x00 
+#define LTC2990_MODE_INTERNAL_TEMP_ONLY 0x00
 #define LTC2990_MODE_TR1_V1_V1V2 0x08 // TR1, V1 or V1 – V2 Only per Mode
-#define LTC2990_MODE_TR1_V3_V3V4 0x10 // TR2, V3 or V3 – V4 Only per Mode 
-#define LTC2990_MODE_ALL_MEASUREMENTS 0x18 
+#define LTC2990_MODE_TR1_V3_V3V4 0x10 // TR2, V3 or V3 – V4 Only per Mode
+#define LTC2990_MODE_ALL_MEASUREMENTS 0x18
 
 #define LTC2990_MODE_V1_V2_TR2 0x00  // V1, V2, TR2 (default)
-#define LTC2990_MODE_V1V2_TR2 0x01  // V1-V2, TR2  
+#define LTC2990_MODE_V1V2_TR2 0x01  // V1-V2, TR2
 #define LTC2990_MODE_V1V2_V3_V4 0x02  // V1-V2, V3, V4
 #define LTC2990_MODE_TR1_V3_V4 0x03  // TR1, V3, V4
 #define LTC2990_MODE_TR1_V3V4 0x04  // TR1, V3-V4
@@ -46,8 +46,8 @@
 #define LTC2990_CONFIG (LTC2990_MODE_ALL_MEASUREMENTS | LTC2990_MODE_V1_V2_V3_V4)
 
 // Status register bits
-#define LTC2990_DATA_VALID_BIT      0x80
-#define LTC2990_BUSY_BIT            0x01
+#define LTC2990_DATA_VALID_BIT 0x80
+#define LTC2990_BUSY_BIT 0x01
 
 #define V1_DIVIDER_RATIO ((18.0f + 10.0f)/10.0f) // ((R26)/(R26 + R29))^-1
 #define V2_DIVIDER_RATIO ((30.0f + 10.0f)/10.0f) // ((R33)/(R33 + R32))^-1
@@ -57,7 +57,7 @@
 #define LTC2990_I2C_TIMEOUT 50
 #define LTC2990_CONVERSION_TIMEOUT 50
 
-typedef struct 
+typedef struct
 {
     I2C_HandleTypeDef *hi2c;
     uint8_t device_addr;

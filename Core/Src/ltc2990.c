@@ -55,7 +55,12 @@ HAL_StatusTypeDef LTC2990_ReadVoltages(LTC2990_handle *handle, float *voltage)
 
     status = LTC2990_WriteReg(handle, LTC2990_TRIGGER_REG, trigger);
 
-    uint8_t start_time = HAL_GetTick();
+    if (status != HAL_OK)
+    {
+        return status;
+    }
+
+    uint32_t start_time = HAL_GetTick();
     uint8_t status_reg;
 
     do
@@ -86,18 +91,26 @@ HAL_StatusTypeDef LTC2990_ReadVoltages(LTC2990_handle *handle, float *voltage)
         return status;
     }
 
+    // validate data
     if (!(v1_raw & 0x8000) || !(v2_raw & 0x8000))
     {
         return HAL_ERROR;
     }
 
+    // discard the two MSB bits
+    // first bit is data-valid bit
+    // second bit is sign bit
+    // we don't need the sign bit because this is a single-ended measurement
     uint16_t v1_adc = v1_raw & 0x3FFF;
     uint16_t v2_adc = v2_raw & 0x3FFF;
 
+    // convert ADC values to voltage
     float v1_input = v1_adc * SINGLE_ENDED_LSB;
     float v2_input = v2_adc * SINGLE_ENDED_LSB;
 
+    // apply voltage divider ratios
     voltage[0] = v1_input * V1_DIVIDER_RATIO;
     voltage[1] = v2_input * V2_DIVIDER_RATIO;
+
     return HAL_OK;
 }
