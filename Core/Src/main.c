@@ -113,7 +113,7 @@ int main(void)
   MX_FDCAN2_Init();
   MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
-  // LTC2990_Init()
+
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -428,18 +428,18 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 #ifdef __GNUC__
-/* With GCC, small printf (option LD Linker->Libraries->Small printf
-   set to 'Yes') calls __io_putchar() */
-int __io_putchar(int ch)
+int _write(int file, char *ptr, int len)
+{
+    CDC_Transmit_FS((uint8_t*)ptr, len);
+    return len;
+}
 #else
 int fputc(int ch, FILE *f)
-#endif /* __GNUC__ */
 {
-  /* Place your implementation of fputc here */
-  /* e.g. write a character to the UART3 and Loop until the end of transmission */
-  CDC_Transmit_FS((uint8_t *)&ch, 1);
-  return ch;
+    CDC_Transmit_FS((uint8_t *)&ch, 1);
+    return ch;
 }
+#endif /* __GNUC__ */
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartSensorTask */
@@ -454,10 +454,33 @@ void StartSensorTask(void *argument)
   /* init code for USB_Device */
   MX_USB_Device_Init();
   /* USER CODE BEGIN 5 */
+  LTC2990_handle ltc2990_handle;
+  printf("here\r\n");
+  float voltages[2];
+  osDelay(5000);
+  if (LTC2990_Init(&ltc2990_handle, &hi2c2) != HAL_OK)
+  {
+    printf("LTC2990 inititalization failed\r\n");
+  }
+  else
+  {
+    printf("LTC2990 initialization sucessful\r\n");
+  }
   /* Infinite loop */
   for(;;)
   {
-    printf("Hello!\r\n");
+    
+    if (LTC2990_ReadVoltages(&ltc2990_handle, voltages) == HAL_OK) 
+    {
+      printf("V1: %.2f V, V2: %.2f V\r\n", voltages[0], voltages[1]);
+    } 
+    else 
+    {
+      printf("LTC2990 read error\r\n");
+    }
+    
+    osDelay(1000);
+    HAL_GPIO_WritePin(led_GPIO_Port, led_Pin, GPIO_PIN_RESET);
     osDelay(1000);
   }
   /* USER CODE END 5 */
