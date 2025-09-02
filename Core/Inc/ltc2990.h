@@ -2,7 +2,6 @@
 #define LTC2990_H
 
 #include "stm32g4xx_hal.h"
-#include "cmsis_os.h"
 #include <stdbool.h>
 #include <stdint.h>
 

@@ -43,7 +43,7 @@ HAL_StatusTypeDef LTC2990_Init(LTC2990_handle *handle, I2C_HandleTypeDef *hi2c)
         return status;
     }
 
-    osDelay(10);
+    HAL_Delay(10);
     return HAL_OK;
 }
 
@@ -67,7 +67,7 @@ HAL_StatusTypeDef LTC2990_ReadVoltages(LTC2990_handle *handle, float *voltage)
 
     do
     {
-        osDelay(1);
+        HAL_Delay(1);
         status = HAL_I2C_Mem_Read(handle->hi2c, handle->device_addr, LTC2990_STATUS_REG, 1, &status_reg, 1, LTC2990_I2C_TIMEOUT);
         if (status != HAL_OK)
         {
@@ -111,18 +111,13 @@ HAL_StatusTypeDef LTC2990_ReadVoltages(LTC2990_handle *handle, float *voltage)
     uint16_t v1_adc = v1_raw & 0x3FFF;
     uint16_t v2_adc = v2_raw & 0x3FFF;
 
-    printf("Extracted V1: %d\r\n", v1_adc);
-
     // convert ADC values to voltage
     float v1_input = v1_adc * SINGLE_ENDED_LSB;
     float v2_input = v2_adc * SINGLE_ENDED_LSB;
-
-    printf("Normalized V1: %f\r\n", v1_input);
 
     // apply voltage divider ratios
     voltage[0] = v1_input * V1_DIVIDER_RATIO;
     voltage[1] = v2_input * V2_DIVIDER_RATIO;
 
-    printf("Divider V1: %f\r\n", voltage[0]);
     return HAL_OK;
 }

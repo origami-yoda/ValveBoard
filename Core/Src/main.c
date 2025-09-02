@@ -18,7 +18,6 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "cmsis_os.h"
 #include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -50,13 +49,6 @@ FDCAN_HandleTypeDef hfdcan2;
 
 I2C_HandleTypeDef hi2c2;
 
-/* Definitions for sensorTask */
-osThreadId_t sensorTaskHandle;
-const osThreadAttr_t sensorTask_attributes = {
-  .name = "sensorTask",
-  .priority = (osPriority_t) osPriorityNormal,
-  .stack_size = 512 * 4
-};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -68,8 +60,6 @@ static void MX_DMA_Init(void);
 static void MX_ADC3_Init(void);
 static void MX_FDCAN2_Init(void);
 static void MX_I2C2_Init(void);
-void StartSensorTask(void *argument);
-
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -110,55 +100,77 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_ADC3_Init();
+
+  HAL_ADCEx_Calibration_Start(&hadc3, ADC_SINGLE_ENDED);
+
   MX_FDCAN2_Init();
   MX_I2C2_Init();
+  MX_USB_Device_Init();
   /* USER CODE BEGIN 2 */
-
+  LTC2990_handle handle;
+  LTC2990_Init(&handle, &hi2c2);
+  if (HAL_FDCAN_Start(&hfdcan2) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE END 2 */
-
-  /* Init scheduler */
-  osKernelInitialize();
-
-  /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
-  /* USER CODE END RTOS_MUTEX */
-
-  /* USER CODE BEGIN RTOS_SEMAPHORES */
-  /* add semaphores, ... */
-  /* USER CODE END RTOS_SEMAPHORES */
-
-  /* USER CODE BEGIN RTOS_TIMERS */
-  /* start timers, add new ones, ... */
-  /* USER CODE END RTOS_TIMERS */
-
-  /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
-  /* USER CODE END RTOS_QUEUES */
-
-  /* Create the thread(s) */
-  /* creation of sensorTask */
-  sensorTaskHandle = osThreadNew(StartSensorTask, NULL, &sensorTask_attributes);
-
-  /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
-  /* USER CODE END RTOS_THREADS */
-
-  /* USER CODE BEGIN RTOS_EVENTS */
-  /* add events, ... */
-  /* USER CODE END RTOS_EVENTS */
-
-  /* Start scheduler */
-  osKernelStart();
-
-  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  float voltages[2];
+  FDCAN_TxHeaderTypeDef txHeader;
+  uint8_t txData[8];
+
+  txHeader.Identifier = 0x001;
+  txHeader.IdType = FDCAN_STANDARD_ID;
+  txHeader.TxFrameType = FDCAN_DATA_FRAME;
+  txHeader.DataLength = FDCAN_DLC_BYTES_8;
+  txHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  txHeader.BitRateSwitch = FDCAN_BRS_OFF;
+  txHeader.FDFormat = FDCAN_CLASSIC_CAN;
+  txHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+  txHeader.MessageMarker = 0;
+  
   while (1)
   {
+    uint16_t raw = 0;
+
+    HAL_ADC_Start(&hadc3);
+    if (HAL_ADC_PollForConversion(&hadc3, 5) == HAL_OK) {
+        raw = (uint16_t)HAL_ADC_GetValue(&hadc3);   // 0..4095
+        printf("ADC3 raw = %u\r\n", raw);
+    }
+    HAL_ADC_Stop(&hadc3);
+
+    LTC2990_ReadVoltages(&handle, voltages);
+    uint16_t voltage0 = (uint16_t)(voltages[0]*1000);
+    uint16_t voltage1 = (uint16_t)(voltages[1]*1000);
+    printf("Voltage 0 = %u\r\n", voltage0);
+    HAL_Delay(10);
+    printf("Voltage 1 = %u\r\n", voltage1);
+
+    txData[0] = (raw >> 8) & 0xFF;
+    txData[1] = raw & 0xFF;
+    txData[2] = (voltage0 >> 8) & 0xFF;
+    txData[3] = voltage0 & 0xFF;
+    txData[4] = (voltage1 >> 8) & 0xFF;
+    txData[5] = voltage1 & 0xFF;
+    txData[6] = 0x00; //reserved
+    txData[7] = txData[0] ^ txData[1] ^ txData[2] ^ txData[3] ^ 
+                txData[4] ^ txData[5] ^ txData[6];
+
+    if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &txHeader, txData) != HAL_OK)
+    {
+      Error_Handler();
+    }
+    HAL_GPIO_WritePin(led_GPIO_Port, led_Pin, GPIO_PIN_SET);
+    HAL_Delay(50); 
+    HAL_GPIO_WritePin(led_GPIO_Port, led_Pin, GPIO_PIN_RESET);
+    HAL_Delay(50); 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    
   }
   /* USER CODE END 3 */
 }
@@ -238,12 +250,12 @@ static void MX_ADC3_Init(void)
   hadc3.Init.ScanConvMode = ADC_SCAN_DISABLE;
   hadc3.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   hadc3.Init.LowPowerAutoWait = DISABLE;
-  hadc3.Init.ContinuousConvMode = ENABLE;
+  hadc3.Init.ContinuousConvMode = DISABLE;
   hadc3.Init.NbrOfConversion = 1;
   hadc3.Init.DiscontinuousConvMode = DISABLE;
   hadc3.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc3.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc3.Init.DMAContinuousRequests = ENABLE;
+  hadc3.Init.DMAContinuousRequests = DISABLE;
   hadc3.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
   hadc3.Init.OversamplingMode = DISABLE;
   if (HAL_ADC_Init(&hadc3) != HAL_OK)
@@ -255,7 +267,7 @@ static void MX_ADC3_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_5;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_2CYCLES_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_47CYCLES_5;
   sConfig.SingleDiff = ADC_SINGLE_ENDED;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
   sConfig.Offset = 0;
@@ -372,7 +384,7 @@ static void MX_DMA_Init(void)
 
   /* DMA interrupt init */
   /* DMA1_Channel1_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 5, 0);
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 
 }
@@ -406,6 +418,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 2, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 2, 0);
+  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 
   /*Configure GPIO pins : solenoid_output_Pin emergency_output_Pin */
   GPIO_InitStruct.Pin = solenoid_output_Pin|emergency_output_Pin;
@@ -441,50 +459,6 @@ int fputc(int ch, FILE *f)
 }
 #endif /* __GNUC__ */
 /* USER CODE END 4 */
-
-/* USER CODE BEGIN Header_StartSensorTask */
-/**
-  * @brief  Function implementing the sensorTask thread.
-  * @param  argument: Not used
-  * @retval None
-  */
-/* USER CODE END Header_StartSensorTask */
-void StartSensorTask(void *argument)
-{
-  /* init code for USB_Device */
-  MX_USB_Device_Init();
-  /* USER CODE BEGIN 5 */
-  LTC2990_handle ltc2990_handle;
-  printf("here\r\n");
-  float voltages[2];
-  osDelay(5000);
-  if (LTC2990_Init(&ltc2990_handle, &hi2c2) != HAL_OK)
-  {
-    printf("LTC2990 inititalization failed\r\n");
-  }
-  else
-  {
-    printf("LTC2990 initialization sucessful\r\n");
-  }
-  /* Infinite loop */
-  for(;;)
-  {
-    
-    if (LTC2990_ReadVoltages(&ltc2990_handle, voltages) == HAL_OK) 
-    {
-      printf("V1: %.2f V, V2: %.2f V\r\n", voltages[0], voltages[1]);
-    } 
-    else 
-    {
-      printf("LTC2990 read error\r\n");
-    }
-    
-    osDelay(1000);
-    HAL_GPIO_WritePin(led_GPIO_Port, led_Pin, GPIO_PIN_RESET);
-    osDelay(1000);
-  }
-  /* USER CODE END 5 */
-}
 
 /**
   * @brief  Period elapsed callback in non blocking mode
@@ -538,3 +512,15 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+    if (GPIO_Pin == emergency_input_Pin) // PB0
+    {
+        HAL_GPIO_WritePin(emergency_output_GPIO_Port, emergency_output_Pin, GPIO_PIN_SET);
+    }
+    else if (GPIO_Pin == solenoid_input_Pin) // PB1
+    {
+        HAL_GPIO_WritePin(solenoid_output_GPIO_Port, solenoid_output_Pin, GPIO_PIN_RESET);
+    }
+}
